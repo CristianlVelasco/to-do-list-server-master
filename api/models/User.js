@@ -14,6 +14,30 @@ const UserSchema = new mongoose.Schema(
          * @required
          */
         username: { type: String, required: true },
+         /**
+         * The password of the user.
+         * Stored as plain text here, but should be hashed
+         * before saving in a production environment.
+         * @type {String}
+         * @required
+         */
+         name: { type: String, required: true },
+          /**
+         * The password of the user.
+         * Stored as plain text here, but should be hashed
+         * before saving in a production environment.
+         * @type {String}
+         * @required
+         */
+          lastname: { type: String, required: true },
+           /**
+         * The password of the user.
+         * Stored as plain text here, but should be hashed
+         * before saving in a production environment.
+         * @type {String}
+         * @required
+         */
+         age: { type: Number, required: true },
         /**
          * The password of the user.
          * Stored as plain text here, but should be hashed
@@ -21,6 +45,7 @@ const UserSchema = new mongoose.Schema(
          * @type {String}
          * @required
          */
+        
         password: { type: String, required: true },
          /**
          * The password of the user.
