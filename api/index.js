@@ -16,7 +16,12 @@ const app = express();
  */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors())
+app.use(cors({
+    origin: ["http://localhost:5173"],              // front en Vite
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-auth-token", "token"],
+    credentials: true
+}));
 
 /**
  * Initialize database connection.

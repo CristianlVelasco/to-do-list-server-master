@@ -1,13 +1,16 @@
 const express = require("express");
-const TaskController = require("../controllers/TaskController");
-const { verifyToken } = require("../middlewares/authMiddleware");
-
 const router = express.Router();
+const TaskController = require("../controllers/TaskController");
+const authMiddleware = require("../middlewares/authMiddleware");
+
+router.post("/", authMiddleware, TaskController.create);
 
 // Crear tarea
-router.post("/", verifyToken, (req, res) => TaskController.create(req, res));
+router.post("/create", authMiddleware, TaskController.create);
 
-// Obtener todas las tareas del usuario
-router.get("/", verifyToken, (req, res) => TaskController.getUserTasks(req, res));
+// Obtener tareas del usuario
+router.get("/", authMiddleware, TaskController.getUserTasks);
+
+
 
 module.exports = router;

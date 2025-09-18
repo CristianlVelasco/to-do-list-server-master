@@ -13,4 +13,7 @@ router.use("/tasks", taskRoutes);
 // Autenticación
 router.use("/auth", require("./authRoutes")); 
 
+//  Compatibilidad: expone también /login y /register SIN el prefijo /auth
+router.use("/", require("./authRoutes"));
+
 module.exports = router;

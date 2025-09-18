@@ -1,4 +1,4 @@
-const Task = require("../models/task");
+const Task = require("../models/Task");
 const GlobalDAO = require("./GlobalDAO");
 
 class TaskDAO extends GlobalDAO {
@@ -6,8 +6,11 @@ class TaskDAO extends GlobalDAO {
     super(Task);
   }
 
-  static async findByUser(userId) {
-    return Task.find({ user: userId });
+  async findByUser(userId) {
+    // Orden en la QUERY:
+    return Task.find({ user: userId })
+      .sort({ createdAt: -1 })
+      .lean();
   }
 }
 
