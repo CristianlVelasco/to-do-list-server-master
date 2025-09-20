@@ -4,6 +4,28 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs"); // ✅ agregado
 const User = require("../models/User");
 
+function parseISODateUTC(yyyyMmDd) {
+  const [y, m, d] = (yyyyMmDd || '').split('-').map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+function isAtLeastYearsOldUTC(birthStr, years = 13) {
+  const birth = parseISODateUTC(birthStr);
+  if (!birth) return false;
+  const now = new Date();
+  const cutoff = new Date(Date.UTC(
+    now.getUTCFullYear() - years,
+    now.getUTCMonth(),
+    now.getUTCDate()
+  ));
+  return birth <= cutoff;
+}
+
+// Contraseña: 8+ chars, al menos 1 mayúscula, 1 minúscula, 1 número y 1 símbolo
+const STRONG_PASS_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\w\s]).{8,}$/;
+
+
 class UserController extends GlobalController {
   constructor() {
     super(UserDAO);
@@ -13,58 +35,69 @@ class UserController extends GlobalController {
   // =============================
   // REGISTRO
   // =============================
-async register(req, res) {
-  try {
-    const username  = (req.body.username  || '').trim();
-    const lastname  = (req.body.lastname  || '').trim();
-    const birthdate = (req.body.birthdate || '').trim();     // esperado YYYY-MM-DD
-    const emailRaw  = (req.body.email     || '').trim();
-    const password  = (req.body.password  || '');
+  async register(req, res) {
+    try {
+      const username = (req.body.username || '').trim();
+      const lastname = (req.body.lastname || '').trim();
+      const birthdate = (req.body.birthdate || '').trim();     // esperado YYYY-MM-DD
+      const emailRaw = (req.body.email || '').trim();
+      const password = (req.body.password || '');
 
-    // normaliza email a minúsculas
-    const email = emailRaw.toLowerCase();
+      // normaliza email a minúsculas
+      const email = emailRaw.toLowerCase();
 
-    if (!username || !lastname || !birthdate || !email || !password) {
-      return res.status(400).json({ message: "Todos los campos son requeridos" });
-    }
-
-    // validación simple de fecha (YYYY-MM-DD)
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(birthdate)) {
-      return res.status(400).json({ message: "Formato de fecha inválido (use YYYY-MM-DD)" });
-    }
-
-    // ¿email ya existe? (insensible a mayúsculas)
-    const existing = await User.findOne({ email: new RegExp(`^${email}$`, 'i') });
-    if (existing) {
-      return res.status(400).json({ message: "El correo ya está registrado" });
-    }
-
-    // hashear contraseña
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // crear usuario
-    const created = await this.userDAO.create({
-      username,
-      lastname,
-      birthdate,
-      email,
-      password: hashedPassword,
-    });
-
-    // responde solo datos seguros
-    return res.status(201).json({
-      message: "Usuario registrado con éxito",
-      user: {
-        id: created._id,
-        username: created.username,
-        email: created.email,
+      if (!username || !lastname || !birthdate || !email || !password) {
+        return res.status(400).json({ message: "Todos los campos son requeridos" });
       }
-    });
-  } catch (err) {
-    console.error("Register error:", err);
-    return res.status(500).json({ error: err.message });
+
+      // validación simple de fecha (YYYY-MM-DD)
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(birthdate)) {
+        return res.status(400).json({ message: "Formato de fecha inválido (use YYYY-MM-DD)" });
+      }
+
+      if (!isAtLeastYearsOldUTC(birthdate, 13)) {
+        return res.status(400).json({ message: "Debes tener al menos 13 años" });
+      }
+
+      // Password fuerte
+      if (!STRONG_PASS_RE.test(password)) {
+        return res.status(400).json({ message: "Contraseña no cumple políticas (8+ caracteres, mayúscula, minúscula, número y símbolo)" });
+      }
+
+      // ¿email ya existe? (insensible a mayúsculas)
+      const existing = await User.findOne({ email: new RegExp(`^${email}$`, 'i') });
+      if (existing) {
+        return res.status(400).json({ message: "El correo ya está registrado" });
+      }
+
+      // hashear contraseña
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // crear usuario
+      let created;
+      try {
+        created = await this.userDAO.create({
+          username,
+          lastname,
+          birthdate,          // guarda "YYYY-MM-DD" o cambialo a Date si tu schema es Date
+          email,
+          password: hashedPassword,
+        });
+      } catch (e) {
+        // Captura duplicado por índice único (por si el modelo tiene unique)
+        if (e && e.code === 11000) {
+          return res.status(409).json({ message: "El correo ya está registrado" });
+        }
+        throw e;
+      }
+
+      // 201 con id
+      return res.status(201).json({ id: created._id });
+    } catch (err) {
+      console.error("Register error:", err);
+      return res.status(500).json({ message: "Error en registro", error: err.message });
+    }
   }
-}
 
   // =============================
   // LOGIN
@@ -122,17 +155,17 @@ async register(req, res) {
         // 👇 mejor no revelar si existe o no
         return res.status(200).json({ message: "Si el correo está registrado, recibirás un email" });
       }
-  
+
       // Generar un token válido por 15 minutos
       const resetToken = jwt.sign(
         { id: user._id },
         process.env.JWT_SECRET || "secreto123",
         { expiresIn: "15m" }
       );
-  
+
       // Link que irá al frontend
       const resetUrl = `${process.env.FRONTEND_URL || "http://localhost:5173"}/reset-password?token=${resetToken}`;
-  
+
       // Configuración de transporte (SMTP real o Mailtrap)
       const transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST,
@@ -143,7 +176,7 @@ async register(req, res) {
           pass: process.env.SMTP_PASS
         }
       });
-  
+
       await transporter.sendMail({
         from: process.env.EMAIL_FROM || '"Soporte" <soporte@tuapp.com>',
         to: user.email,
@@ -154,7 +187,7 @@ async register(req, res) {
           <p>Este enlace expira en 15 minutos.</p>
         `
       });
-  
+
       res.json({ message: "Correo enviado (si el email está registrado)" });
     } catch (err) {
       res.status(500).json({ message: "Error al generar token", error: err.message });
@@ -169,21 +202,21 @@ async register(req, res) {
     try {
       // Verificar token
       const decoded = jwt.verify(token, process.env.JWT_SECRET || "secreto123");
-  
+
       // Hashear nueva contraseña
       const hashedPassword = await bcrypt.hash(newPassword, 10);
-  
+
       // Actualizar usuario
       await User.findByIdAndUpdate(decoded.id, {
         password: hashedPassword
       });
-  
+
       res.json({ message: "Contraseña actualizada correctamente" });
     } catch (err) {
       res.status(400).json({ message: "Token inválido o expirado", error: err.message });
     }
   }
-  
+
 }
 
 module.exports = new UserController();
