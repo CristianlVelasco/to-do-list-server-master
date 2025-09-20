@@ -3,22 +3,20 @@ require("dotenv").config();
 console.log(">>> ENV MONGO_URI:", process.env.MONGO_URI);
 
 const cors = require("cors");
-const routes = require("./routes/routes.js");
 const { connectDB } = require("./config/database");
 
 const app = express();
 
-/* ===== CORS: orígenes permitidos ===== */
+/* ===== CORS ===== */
 const allowedOrigins = [
-    "http://localhost:5173", // Vite local
-    "https://kairo-client-plzzpyyht-norbeyruales-projects.vercel.app" // SIN barra final
+    "http://localhost:5173",
+    "https://kairo-client-plzzpyyht-norbeyruales-projects.vercel.app" // sin barra final
 ];
-// permitir cualquier *.vercel.app (previews)
 const vercelRegex = /\.vercel\.app$/;
 
 const corsOptions = {
     origin(origin, cb) {
-        // permitir herramientas sin Origin (curl/Postman/Render healthchecks)
+        // permitir herramientas sin origin (curl/Postman/healthchecks)
         if (!origin) return cb(null, true);
         if (allowedOrigins.includes(origin) || vercelRegex.test(origin)) {
             return cb(null, true);
@@ -34,10 +32,17 @@ const corsOptions = {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// aplicar CORS a todo
+// Aplica CORS a todo
 app.use(cors(corsOptions));
-// responder explícitamente preflights con headers CORS
-app.options("*", cors(corsOptions));
+
+// 🔧 FIX Express 5: NO usar app.options("*")
+// Responder preflight de forma genérica
+app.use((req, res, next) => {
+    if (req.method === "OPTIONS") {
+        return res.sendStatus(204); 
+    }
+    next();
+});
 
 /* ===== DB ===== */
 connectDB();
@@ -50,8 +55,10 @@ app.get("/", (req, res) => res.send("Server is running"));
 
 /* ===== Arranque ===== */
 if (require.main === module) {
-    const PORT = process.env.PORT || 3000;
+    const PORT = process.env.PORT || 3000; // Render te inyecta PORT
     app.listen(PORT, () => {
         console.log(`Server running on http://localhost:${PORT}`);
     });
 }
+
+module.exports = app;
