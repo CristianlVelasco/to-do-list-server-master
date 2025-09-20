@@ -118,17 +118,44 @@ async register(req, res) {
     const { email } = req.body;
     try {
       const user = await User.findOne({ email });
-      if (!user) return res.status(404).json({ message: "Usuario no encontrado" });
-
-      // Generar un token de 15 minutos
+      if (!user) {
+        // 👇 mejor no revelar si existe o no
+        return res.status(200).json({ message: "Si el correo está registrado, recibirás un email" });
+      }
+  
+      // Generar un token válido por 15 minutos
       const resetToken = jwt.sign(
         { id: user._id },
         process.env.JWT_SECRET || "secreto123",
         { expiresIn: "15m" }
       );
-
-      // En un proyecto real, aquí se enviaría el token por correo.
-      res.json({ message: "Token de recuperación generado", resetToken });
+  
+      // Link que irá al frontend
+      const resetUrl = `${process.env.FRONTEND_URL || "http://localhost:5173"}/reset-password?token=${resetToken}`;
+  
+      // Configuración de transporte (SMTP real o Mailtrap)
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: process.env.SMTP_PORT,
+        secure: false,
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS
+        }
+      });
+  
+      await transporter.sendMail({
+        from: process.env.EMAIL_FROM || '"Soporte" <soporte@tuapp.com>',
+        to: user.email,
+        subject: "Recuperar contraseña",
+        html: `
+          <p>Has solicitado recuperar tu contraseña.</p>
+          <p>Haz click aquí para cambiarla: <a href="${resetUrl}">${resetUrl}</a></p>
+          <p>Este enlace expira en 15 minutos.</p>
+        `
+      });
+  
+      res.json({ message: "Correo enviado (si el email está registrado)" });
     } catch (err) {
       res.status(500).json({ message: "Error al generar token", error: err.message });
     }
@@ -140,15 +167,23 @@ async register(req, res) {
   async resetPassword(req, res) {
     const { token, newPassword } = req.body;
     try {
+      // Verificar token
       const decoded = jwt.verify(token, process.env.JWT_SECRET || "secreto123");
+  
+      // Hashear nueva contraseña
       const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-      await User.findByIdAndUpdate(decoded.id, { password: hashedPassword });
+  
+      // Actualizar usuario
+      await User.findByIdAndUpdate(decoded.id, {
+        password: hashedPassword
+      });
+  
       res.json({ message: "Contraseña actualizada correctamente" });
     } catch (err) {
       res.status(400).json({ message: "Token inválido o expirado", error: err.message });
     }
   }
+  
 }
 
 module.exports = new UserController();
