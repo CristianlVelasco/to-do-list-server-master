@@ -8,49 +8,50 @@ const { connectDB } = require("./config/database");
 
 const app = express();
 
-/**
- * Middleware configuration
- * - Parse JSON request bodies
- * - Parse URL-encoded request bodies
- * - Enable Cross-Origin Resource Sharing (CORS)
- */
+/* ===== CORS: orígenes permitidos ===== */
+const allowedOrigins = [
+    "http://localhost:5173", // Vite local
+    "https://kairo-client-plzzpyyht-norbeyruales-projects.vercel.app" // SIN barra final
+];
+// permitir cualquier *.vercel.app (previews)
+const vercelRegex = /\.vercel\.app$/;
+
+const corsOptions = {
+    origin(origin, cb) {
+        // permitir herramientas sin Origin (curl/Postman/Render healthchecks)
+        if (!origin) return cb(null, true);
+        if (allowedOrigins.includes(origin) || vercelRegex.test(origin)) {
+            return cb(null, true);
+        }
+        return cb(new Error("Origin not allowed by CORS: " + origin));
+    },
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-auth-token", "token"],
+    credentials: false, // pon true solo si usas cookies
+};
+
+/* ===== Middlewares ===== */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors({
-    origin: ["http://localhost:5173"],              // front en Vite
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "x-auth-token", "token"],
-    credentials: true
-}));
 
-/**
- * Initialize database connection.
- * Exits the process if the connection fails.
- */
+// aplicar CORS a todo
+app.use(cors(corsOptions));
+// responder explícitamente preflights con headers CORS
+app.options("*", cors(corsOptions));
+
+/* ===== DB ===== */
 connectDB();
 
-/**
- * Mount the API routes.
- * All feature routes are grouped under `/api/v1`.
- */
+/* ===== Rutas ===== */
 app.use("/api/v1", require("./routes/routes"));
 
-/**
- * Health check endpoint.
- * Useful to verify that the server is up and running.
- */
+/* ===== Healthcheck ===== */
 app.get("/", (req, res) => res.send("Server is running"));
 
-/**
- * Start the server only if this file is run directly
- * (prevents multiple servers when testing with imports).
- */
+/* ===== Arranque ===== */
 if (require.main === module) {
     const PORT = process.env.PORT || 3000;
-
     app.listen(PORT, () => {
         console.log(`Server running on http://localhost:${PORT}`);
     });
 }
-
-
