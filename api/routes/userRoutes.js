@@ -1,8 +1,5 @@
 const express = require("express");
 const router = express.Router();
-const UserDAO = require("../dao/UserDAO");
-const jwt = require("jsonwebtoken");
-
 const UserController = require("../controllers/UserController");
 
 /**
@@ -22,50 +19,46 @@ router.get("/:id", (req, res) => UserController.read(req, res));
 
 /**
  * @route POST /users
- * @description Create a new user.
- * @body {string} username - The username of the user.
- * @body {string} password - The password of the user.
+ * @description Create a new user (registro).
+ * @body {string} username
+ * @body {string} lastname
+ * @body {string} birthdate
+ * @body {string} email
+ * @body {string} password
  * @access Public
  */
-router.post("/", (req, res) => UserController.create(req, res));
+router.post("/", (req, res) => UserController.register(req, res));
+
 /**
  * @route POST /users/login
  * @description Login de usuario.
  * @body {string} email
  * @body {string} password
+ * @access Public
  */
-// Login
-router.post("/login", async (req, res) => {
-    const { email, password } = req.body;
-  
-    try {
-      const user = await UserDAO.findByEmail(email);
-      if (!user) {
-        return res.status(400).json({ message: "Usuario no encontrado" });
-      }
-  
-      // ⚠️ Si usas bcrypt, aquí va la comparación con bcrypt.compare
-      if (user.password !== password) {
-        return res.status(400).json({ message: "Contraseña incorrecta" });
-      }
-  
-      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || "secreto123", {
-        expiresIn: "1h",
-      });
-  
-      res.json({ token });
-    } catch (err) {
-      res.status(500).json({ message: "Error en el servidor", error: err.message });
-    }
-  });
+router.post("/login", (req, res) => UserController.login(req, res));
 
+/**
+ * @route POST /users/forgot-password
+ * @description Enviar token de recuperación.
+ * @body {string} email
+ * @access Public
+ */
+router.post("/forgot-password", (req, res) => UserController.forgotPassword(req, res));
+
+/**
+ * @route POST /users/reset-password
+ * @description Resetear contraseña con token.
+ * @body {string} token
+ * @body {string} newPassword
+ * @access Public
+ */
+router.post("/reset-password", (req, res) => UserController.resetPassword(req, res));
 
 /**
  * @route PUT /users/:id
  * @description Update an existing user by ID.
- * @param {string} id - The unique identifier of the user.
- * @body {string} [username] - Updated username (optional).
- * @body {string} [password] - Updated password (optional).
+ * @param {string} id
  * @access Public
  */
 router.put("/:id", (req, res) => UserController.update(req, res));
@@ -73,7 +66,7 @@ router.put("/:id", (req, res) => UserController.update(req, res));
 /**
  * @route DELETE /users/:id
  * @description Delete a user by ID.
- * @param {string} id - The unique identifier of the user.
+ * @param {string} id
  * @access Public
  */
 router.delete("/:id", (req, res) => UserController.delete(req, res));
