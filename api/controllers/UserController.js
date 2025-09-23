@@ -112,6 +112,8 @@ class UserController extends GlobalController {
     try {
       const email = (req.body.email || "").trim().toLowerCase();
       const password = req.body.password || "";
+      console.log("🟢 Login req.body:", req.body);  // <--- revisa qué llega
+
 
       if (!email || !password) {
         return res

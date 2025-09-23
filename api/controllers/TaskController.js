@@ -1,56 +1,94 @@
-const TaskDAO = require("../dao/TaskDAO");
+const Task = require("../models/task");
 
-class TaskController {
+/**
+ * Crear nueva tarea
+ */
+exports.create = async (req, res) => {
+  try {
+    const { title, detail, date, time, status } = req.body;
+    const task = new Task({
+      title,
+      detail,
+      date,
+      time,
+      status,
+      user: req.user.id, // viene del authMiddleware
+    });
 
-  static async create(req, res) {
-    try {
-      let { title, detail, status, date, time, dueAt } = req.body;
-      const userId = req.user.id; // del JWT
-
-      // 1) Normaliza status si viene del front en inglés
-      const statusMap = { todo: "pendiente", doing: "en progreso", done: "completada" };
-      if (status && statusMap[status]) status = statusMap[status];
-
-      // 2) Aceptar dueAt ("YYYY-MM-DDTHH:mm") o {date,time}
-      let finalDate = date || null;
-      let finalTime = time || null;
-
-      if (!finalDate || !finalTime) {
-        if (typeof dueAt === "string") {
-          const [d, t] = dueAt.split("T");
-          finalDate = finalDate || d || null;
-          finalTime = finalTime || (t ? t.slice(0, 5) : null); // HH:mm
-        }
-      }
-
-      // 3) Validación mínima
-      if (!title || !finalDate || !finalTime || !status) {
-        return res.status(400).json({ message: "Faltan campos: title, date, time, status" });
-      }
-
-      const newTask = await TaskDAO.create({
-        title,
-        detail: detail || "",
-        date: finalDate,
-        time: finalTime,
-        status,
-        user: userId,
-      });
-
-      return res.status(201).json(newTask);
-    } catch (err) {
-      return res.status(500).json({ message: "Error al crear tarea", error: err.message });
-    }
+    await task.save();
+    res.status(201).json(task);
+  } catch (error) {
+    res.status(500).json({ message: "Error al crear la tarea", error: error.message });
   }
-  static async getUserTasks(req, res) {
-    try {
-      const userId = req.user.id;
-      const tasks = await TaskDAO.findByUser(userId); // ahora sí existe y ordena bien
-      return res.json(tasks);
-    } catch (err) {
-      return res.status(500).json({ message: "Error al obtener tareas", error: err.message });
-    }
-  }
-}
+};
 
-module.exports = TaskController;
+/**
+ * Obtener todas las tareas del usuario autenticado
+ */
+exports.getUserTasks = async (req, res) => {
+  try {
+    const tasks = await Task.find({ user: req.user.id }).sort({ createdAt: -1 });
+    res.json(tasks);
+  } catch (error) {
+    res.status(500).json({ message: "Error al obtener tareas", error: error.message });
+  }
+};
+
+/**
+ * Actualizar tarea por ID
+ */
+exports.update = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const task = await Task.findOneAndUpdate(
+      { _id: id, user: req.user.id }, // asegura que sea del usuario
+      req.body,
+      { new: true }
+    );
+
+    if (!task) {
+      return res.status(404).json({ message: "Tarea no encontrada" });
+    }
+
+    res.json(task);
+  } catch (error) {
+    res.status(500).json({ message: "Error al actualizar tarea", error: error.message });
+  }
+};
+
+/**
+ * Eliminar tarea por ID
+ */
+exports.remove = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const task = await Task.findOneAndDelete({ _id: id, user: req.user.id });
+
+    if (!task) {
+      return res.status(404).json({ message: "Tarea no encontrada" });
+    }
+
+    res.json({ message: "Tarea eliminada" });
+  } catch (error) {
+    res.status(500).json({ message: "Error al eliminar tarea", error: error.message });
+  }
+};
+
+/**
+ * Obtener una tarea por ID
+ */
+exports.getById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const task = await Task.findOne({ _id: id, user: req.user.id });
+
+    if (!task) {
+      return res.status(404).json({ message: "Tarea no encontrada" });
+    }
+
+    res.json(task);
+  } catch (error) {
+    res.status(500).json({ message: "Error al obtener tarea", error: error.message });
+  }
+};
+
