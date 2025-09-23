@@ -3,54 +3,62 @@ require("dotenv").config();
 console.log(">>> ENV MONGO_URI:", process.env.MONGO_URI);
 
 const cors = require("cors");
-const routes = require("./routes/routes.js");
 const { connectDB } = require("./config/database");
 
 const app = express();
 
-/**
- * Middleware configuration
- * - Parse JSON request bodies
- * - Parse URL-encoded request bodies
- * - Enable Cross-Origin Resource Sharing (CORS)
- */
+/* ===== CORS ===== */
+const allowedOrigins = [
+    "http://localhost:5173",
+    "https://kairo-client-plzzpyyht-norbeyruales-projects.vercel.app" // sin barra final
+];
+const vercelRegex = /\.vercel\.app$/;
+
+const corsOptions = {
+    origin(origin, cb) {
+        // permitir herramientas sin origin (curl/Postman/healthchecks)
+        if (!origin) return cb(null, true);
+        if (allowedOrigins.includes(origin) || vercelRegex.test(origin)) {
+            return cb(null, true);
+        }
+        return cb(new Error("Origin not allowed by CORS: " + origin));
+    },
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-auth-token", "token"],
+    credentials: false, // pon true solo si usas cookies
+};
+
+/* ===== Middlewares ===== */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors({
-    origin: ["http://localhost:5173"],              // front en Vite
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "x-auth-token", "token"],
-    credentials: true
-}));
 
-/**
- * Initialize database connection.
- * Exits the process if the connection fails.
- */
+// Aplica CORS a todo
+app.use(cors(corsOptions));
+
+// 🔧 FIX Express 5: NO usar app.options("*")
+// Responder preflight de forma genérica
+app.use((req, res, next) => {
+    if (req.method === "OPTIONS") {
+        return res.sendStatus(204); 
+    }
+    next();
+});
+
+/* ===== DB ===== */
 connectDB();
 
-/**
- * Mount the API routes.
- * All feature routes are grouped under `/api/v1`.
- */
+/* ===== Rutas ===== */
 app.use("/api/v1", require("./routes/routes"));
 
-/**
- * Health check endpoint.
- * Useful to verify that the server is up and running.
- */
+/* ===== Healthcheck ===== */
 app.get("/", (req, res) => res.send("Server is running"));
 
-/**
- * Start the server only if this file is run directly
- * (prevents multiple servers when testing with imports).
- */
+/* ===== Arranque ===== */
 if (require.main === module) {
-    const PORT = process.env.PORT || 3000;
-
+    const PORT = process.env.PORT || 3000; // Render te inyecta PORT
     app.listen(PORT, () => {
         console.log(`Server running on http://localhost:${PORT}`);
     });
 }
 
-
+module.exports = app;
