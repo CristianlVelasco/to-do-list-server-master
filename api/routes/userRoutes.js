@@ -1,7 +1,16 @@
 const express = require("express");
 const router = express.Router();
 const UserController = require("../controllers/UserController");
+const authMiddleware = require("../middlewares/authMiddleware");
 
+
+
+
+// GET /users/profile
+router.get("/profile", authMiddleware, (req, res) => UserController.readProfile(req, res));
+
+// PUT /users/profile
+router.put("/profile", authMiddleware, (req, res) => UserController.updateProfile(req, res));
 /**
  * @route GET /users
  * @description Retrieve all users.
@@ -74,4 +83,5 @@ router.delete("/:id", (req, res) => UserController.delete(req, res));
 /**
  * Export the router instance to be mounted in the main routes file.
  */
+
 module.exports = router;

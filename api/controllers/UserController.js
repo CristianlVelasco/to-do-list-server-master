@@ -250,6 +250,35 @@ class UserController extends GlobalController {
         .json({ message: "Token inválido o expirado", error: err.message });
     }
   }
+
+  async readProfile(req, res) {
+    try {
+      const user = await User.findById(req.user.id).select("-password");
+      if (!user) return res.status(404).json({ message: "Usuario no encontrado" });
+      res.json(user);
+    } catch (err) {
+      console.error("readProfile error:", err);
+      res.status(500).json({ message: err.message });
+    }
+  }
+  
+  // PUT /users/profile
+  async updateProfile(req, res) {
+    try {
+      const updates = req.body;
+      const user = await User.findByIdAndUpdate(req.user.id, updates, {
+        new: true,
+        runValidators: true,
+      }).select("-password");
+      if (!user) return res.status(404).json({ message: "Usuario no encontrado" });
+      res.json(user);
+    } catch (err) {
+      console.error("updateProfile error:", err);
+      res.status(500).json({ message: err.message });
+    }
+  }
+
+  
 }
 
 module.exports = new UserController();
